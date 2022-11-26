@@ -92,7 +92,7 @@ namespace
             std::string pem_base64;
             base64::encode(pem, pem_base64);
 
-            cout << "PEM:\n" << pem_base64 << endl << util::toHexDumpStr(pem) << endl;
+            cout << "\n-----BEGIN RSA PUBLIC KEY-----\n" << pem_base64 << "\n-----END RSA PUBLIC KEY-----\n" << endl << util::toHexDumpStr(pem) << endl;
 
             r = 0;
         }
