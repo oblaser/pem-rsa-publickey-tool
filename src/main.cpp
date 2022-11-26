@@ -16,6 +16,11 @@ copyright       GNU GPLv3 - Copyright (c) 2022 Oliver Blaser
 #include "middleware/util.h"
 
 
+#ifdef _DEBUG
+#define DBG_PRINT_LINENO() cout<<__LINE__<<endl
+#endif
+
+
 using std::cout;
 using std::endl;
 
@@ -43,7 +48,61 @@ namespace
 
     int build(const std::string& mod, const std::string& exp)
     {
-        return -1;
+        int r = 1;
+
+        try
+        {
+            std::vector<uint8_t> ___modData;
+            std::vector<uint8_t> ___expData;
+            const std::vector<uint8_t>& modData = ___modData;
+            const std::vector<uint8_t>& expData = ___expData;
+
+            if (base64::decode(mod, ___modData) != base64::OK) throw std::runtime_error("failed to decode modulus base64");
+            if (base64::decode(exp, ___expData) != base64::OK) throw std::runtime_error("failed to decode exponent base64");
+
+#if defined(_DEBUG) && 0
+            cout << util::toHexDumpStr(modData) << endl;
+            cout << util::toHexDumpStr(expData) << endl;
+#endif
+
+            std::vector<uint8_t> pemMod;
+            pemMod.reserve(1 + 3 + modData.size());
+            pemMod.push_back(tlv::tag::integer);
+            tlv::pushBackLen(pemMod, modData.size());
+            pemMod.insert(pemMod.end(), modData.begin(), modData.end());
+
+            std::vector<uint8_t> pemExp;
+            pemExp.reserve(1 + 1 + expData.size());
+            pemExp.push_back(tlv::tag::integer);
+            tlv::pushBackLen(pemExp, expData.size());
+            pemExp.insert(pemExp.end(), expData.begin(), expData.end());
+
+#if defined(_DEBUG) && 0
+            cout << util::toHexDumpStr(pemMod) << endl;
+            cout << util::toHexDumpStr(pemExp) << endl;
+#endif
+
+            std::vector<uint8_t> pem;
+            pem.reserve(1 + 3 + pemMod.size() + pemExp.size());
+            pem.push_back(tlv::tag::sequence);
+            tlv::pushBackLen(pem, pemMod.size() + pemExp.size());
+            pem.insert(pem.end(), pemMod.begin(), pemMod.end());
+            pem.insert(pem.end(), pemExp.begin(), pemExp.end());
+
+            std::string pem_base64;
+            base64::encode(pem, pem_base64);
+
+            cout << "PEM:\n" << pem_base64 << endl << util::toHexDumpStr(pem) << endl;
+
+            r = 0;
+        }
+        catch (const std::exception& ex)
+        {
+            r = 2;
+            cout << "error:    " << ex.what() << endl;
+        }
+
+        return r;
     }
 
     int extract(const std::string& pem)
@@ -54,19 +113,19 @@ namespace
         {
             std::vector<uint8_t> ___data;
             const std::vector<uint8_t>& data = ___data;
-            if (base64::decode(pem, ___data) != base64::OK) throw std::runtime_error("PEM - failed to decode base64");
+            if (base64::decode(pem, ___data) != base64::OK) throw std::runtime_error("failed to decode base64");
 
             const uint8_t* const pData = data.data();
 
-            if (data[0] != tlv::tag::sequence) throw std::runtime_error("PEM - not a sequence");
+            if (data[0] != tlv::tag::sequence) throw std::runtime_error("not a sequence");
 
             size_t seqLenSize;
             const size_t seqLen = tlv::parseLen(data.data() + 1, &seqLenSize);
-            if (data.size() != (1 + seqLenSize + seqLen)) throw std::runtime_error("PEM - sequence length");
+            if (data.size() != (1 + seqLenSize + seqLen)) throw std::runtime_error("sequence length");
 
             const size_t intModPos = 1 + seqLenSize;
 
-            if (data[intModPos] != tlv::tag::integer) throw std::runtime_error("PEM - modulus is not an integer");
+            if (data[intModPos] != tlv::tag::integer) throw std::runtime_error("modulus is not an integer");
 
             size_t intModLenSize;
             const size_t intModLen = tlv::parseLen(data.data() + intModPos + 1, &intModLenSize);
@@ -74,7 +133,7 @@ namespace
 
             const size_t intExpPos = intModPos + 1 + intModLenSize + intModLen;
 
-            if (data[intExpPos] != tlv::tag::integer) throw std::runtime_error("PEM - exponent is not an integer");
+            if (data[intExpPos] != tlv::tag::integer) throw std::runtime_error("exponent is not an integer");
 
             size_t intExpLenSize;
             const size_t intExpLen = tlv::parseLen(data.data() + intExpPos + 1, &intExpLenSize);
@@ -85,7 +144,7 @@ namespace
             cout << (1 + intModLenSize + intModLen + 1 + intExpLenSize + intExpLen) << endl;
 #endif
 
-            if (seqLen != (1 + intModLenSize + intModLen + 1 + intExpLenSize + intExpLen)) throw std::runtime_error("PEM - sequence data length");
+            if (seqLen != (1 + intModLenSize + intModLen + 1 + intExpLenSize + intExpLen)) throw std::runtime_error("sequence data length");
 
             const std::vector<uint8_t> mod(pData + modPos, pData + modPos + intModLen);
             const std::vector<uint8_t> exp(pData + expPos, pData + expPos + intExpLen);
@@ -96,9 +155,9 @@ namespace
             base64::encode(mod, mod_base64);
             base64::encode(exp, exp_base64);
 
-            cout << "Modulus:\n" << mod_base64 << endl << util::tohexDumpStr(mod) << endl;
+            cout << "Modulus:\n" << mod_base64 << endl << util::toHexDumpStr(mod) << endl;
             cout << endl;
-            cout << "Exponent:\n" << exp_base64 << endl << util::tohexDumpStr(exp) << endl;
+            cout << "Exponent:\n" << exp_base64 << endl << util::toHexDumpStr(exp) << endl;
 
             r = 0;
         }
@@ -119,21 +178,24 @@ int main(int argc, char** argv)
     int r = -1;
 
 #if defined(_DEBUG)
+    if(argc == 1)
+    {
+        //const char* dbg_argv[] = { binName, "--help" };
 
-    //const char* dbg_argv[] = { binName, "--help" };
+        //const char* dbg_argv[] = { binName, "extract", "MIGJAoGBANxn+vSe8nIdRSy0gHkGoJQnUIIJ3WfOV7hsSk9An9LRafuZXYUMB6H5RxtWFm72f7nPKlg2N5kpqk+oEuhPx4IrnXIqnN5vwu4Sbc/w8rjE3XxcGsgXUams3wgiBJ0r1/lLCd6a61xRGtj4+Vae+Ps3mz/TdGUkDf80dVek9b9VAgMBAAE=" };
+        // 30 81 89 02 81 81 00 DC 67 FA F4 9E F2 72 1D 45 2C B4 80 79 06 A0 94 27 50 82 09 DD 67 CE 57 B8 6C 4A 4F 40 9F D2 D1 69 FB 99 5D 85 0C 07 A1 F9 47 1B 56 16 6E F6 7F B9 CF 2A 58 36 37 99 29 AA 4F A8 12 E8 4F C7 82 2B 9D 72 2A 9C DE 6F C2 EE 12 6D CF F0 F2 B8 C4 DD 7C 5C 1A C8 17 51 A9 AC DF 08 22 04 9D 2B D7 F9 4B 09 DE 9A EB 5C 51 1A D8 F8 F9 56 9E F8 FB 37 9B 3F D3 74 65 24 0D FF 34 75 57 A4 F5 BF 55 02 03 01 00 01
+        // 00 DC 67 FA F4 9E F2 72 1D 45 2C B4 80 79 06 A0 94 27 50 82 09 DD 67 CE 57 B8 6C 4A 4F 40 9F D2 D1 69 FB 99 5D 85 0C 07 A1 F9 47 1B 56 16 6E F6 7F B9 CF 2A 58 36 37 99 29 AA 4F A8 12 E8 4F C7 82 2B 9D 72 2A 9C DE 6F C2 EE 12 6D CF F0 F2 B8 C4 DD 7C 5C 1A C8 17 51 A9 AC DF 08 22 04 9D 2B D7 F9 4B 09 DE 9A EB 5C 51 1A D8 F8 F9 56 9E F8 FB 37 9B 3F D3 74 65 24 0D FF 34 75 57 A4 F5 BF 55
+        // 01 00 01
+        // ANxn+vSe8nIdRSy0gHkGoJQnUIIJ3WfOV7hsSk9An9LRafuZXYUMB6H5RxtWFm72f7nPKlg2N5kpqk+oEuhPx4IrnXIqnN5vwu4Sbc/w8rjE3XxcGsgXUams3wgiBJ0r1/lLCd6a61xRGtj4+Vae+Ps3mz/TdGUkDf80dVek9b9V
+        // AQAB
 
-    const char* dbg_argv[] = { binName, "extract", "MIGJAoGBANxn+vSe8nIdRSy0gHkGoJQnUIIJ3WfOV7hsSk9An9LRafuZXYUMB6H5RxtWFm72f7nPKlg2N5kpqk+oEuhPx4IrnXIqnN5vwu4Sbc/w8rjE3XxcGsgXUams3wgiBJ0r1/lLCd6a61xRGtj4+Vae+Ps3mz/TdGUkDf80dVek9b9VAgMBAAE=" };
-    // 30 81 89 02 81 81 00 DC 67 FA F4 9E F2 72 1D 45 2C B4 80 79 06 A0 94 27 50 82 09 DD 67 CE 57 B8 6C 4A 4F 40 9F D2 D1 69 FB 99 5D 85 0C 07 A1 F9 47 1B 56 16 6E F6 7F B9 CF 2A 58 36 37 99 29 AA 4F A8 12 E8 4F C7 82 2B 9D 72 2A 9C DE 6F C2 EE 12 6D CF F0 F2 B8 C4 DD 7C 5C 1A C8 17 51 A9 AC DF 08 22 04 9D 2B D7 F9 4B 09 DE 9A EB 5C 51 1A D8 F8 F9 56 9E F8 FB 37 9B 3F D3 74 65 24 0D FF 34 75 57 A4 F5 BF 55 02 03 01 00 01
-    // 00 DC 67 FA F4 9E F2 72 1D 45 2C B4 80 79 06 A0 94 27 50 82 09 DD 67 CE 57 B8 6C 4A 4F 40 9F D2 D1 69 FB 99 5D 85 0C 07 A1 F9 47 1B 56 16 6E F6 7F B9 CF 2A 58 36 37 99 29 AA 4F A8 12 E8 4F C7 82 2B 9D 72 2A 9C DE 6F C2 EE 12 6D CF F0 F2 B8 C4 DD 7C 5C 1A C8 17 51 A9 AC DF 08 22 04 9D 2B D7 F9 4B 09 DE 9A EB 5C 51 1A D8 F8 F9 56 9E F8 FB 37 9B 3F D3 74 65 24 0D FF 34 75 57 A4 F5 BF 55
-    // 01 00 01
-    // ANxn+vSe8nIdRSy0gHkGoJQnUIIJ3WfOV7hsSk9An9LRafuZXYUMB6H5RxtWFm72f7nPKlg2N5kpqk+oEuhPx4IrnXIqnN5vwu4Sbc/w8rjE3XxcGsgXUams3wgiBJ0r1/lLCd6a61xRGtj4+Vae+Ps3mz/TdGUkDf80dVek9b9V
-    // AQAB
+        const char* dbg_argv[] = { binName, "build", "ANxn+vSe8nIdRSy0gHkGoJQnUIIJ3WfOV7hsSk9An9LRafuZXYUMB6H5RxtWFm72f7nPKlg2N5kpqk+oEuhPx4IrnXIqnN5vwu4Sbc/w8rjE3XxcGsgXUams3wgiBJ0r1/lLCd6a61xRGtj4+Vae+Ps3mz/TdGUkDf80dVek9b9V", "AQAB" };
 
-    //const char* dbg_argv[] = { binName, "build", "ANxn+vSe8nIdRSy0gHkGoJQnUIIJ3WfOV7hsSk9An9LRafuZXYUMB6H5RxtWFm72f7nPKlg2N5kpqk+oEuhPx4IrnXIqnN5vwu4Sbc/w8rjE3XxcGsgXUams3wgiBJ0r1/lLCd6a61xRGtj4+Vae+Ps3mz/TdGUkDf80dVek9b9V", "AQAB" };
+        argc = (sizeof(dbg_argv) / sizeof(dbg_argv[0]));
+        argv = (char**)dbg_argv;
 
-    argc = (sizeof(dbg_argv) / sizeof(dbg_argv[0]));
-    argv = (char**)dbg_argv;
-    //cout << sizeof(dbg_argv) << "/" << sizeof(dbg_argv[0]) << " = " << argc << endl;
+        //cout << sizeof(dbg_argv) << "/" << sizeof(dbg_argv[0]) << " = " << argc << endl;
+    }
     //for (int i = 0; i < argc; ++i) cout << "  # " << argv[i] << endl;
 #endif
 
@@ -145,12 +207,18 @@ int main(int argc, char** argv)
         else if (cmd == "extract")
         {
             if (argc == 3) r = extract(argv[2]);
-            else cout << binName << " " << cmd << "<PEM_base64>" << endl;
+            else cout << binName << " " << cmd << " <PEM_base64>" << endl;
         }
         else if (cmd == "build")
         {
-            if (argc == 4) r = build(argv[2], argv[3]);
-            else cout << binName << " " << cmd << "<MODULUS_base64> <EXPONENT_base64>" << endl;
+            if (argc == 4)
+            {
+                const std::string a = argv[2];
+                const std::string b = argv[3];
+
+                r = build(a, b);
+            }
+            else cout << binName << " " << cmd << " <MODULUS_base64> <EXPONENT_base64>" << endl;
         }
         else printError();
     }

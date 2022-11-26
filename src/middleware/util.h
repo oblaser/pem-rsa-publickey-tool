@@ -19,8 +19,8 @@ namespace util
     std::string toHexStr(const uint8_t* data, size_t count, char delimiter = toHexStr_defaultDelimiter);
     inline std::string toHexStr(const std::vector<uint8_t>& data, char delimiter = toHexStr_defaultDelimiter) { return toHexStr(data.data(), data.size(), delimiter); }
 
-    std::string tohexDumpStr(const uint8_t* data, size_t count);
-    inline std::string tohexDumpStr(const std::vector<uint8_t>& data) { return tohexDumpStr(data.data(), data.size()); }
+    std::string toHexDumpStr(const uint8_t* data, size_t count);
+    inline std::string toHexDumpStr(const std::vector<uint8_t>& data) { return toHexDumpStr(data.data(), data.size()); }
 }
 
 namespace base64
@@ -44,6 +44,7 @@ namespace tlv
     }
 
     size_t parseLen(const uint8_t* data, size_t* lenSize = nullptr);
+    void pushBackLen(std::vector<uint8_t>& buffer, size_t len);
 }
 
 #endif // IG_MDW_UTIL_H

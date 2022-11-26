@@ -71,7 +71,7 @@ std::string util::toHexStr(const uint8_t* data, size_t count, char delimiter)
     return str;
 }
 
-std::string util::tohexDumpStr(const uint8_t* data, size_t count)
+std::string util::toHexDumpStr(const uint8_t* data, size_t count)
 {
     std::string r = "";
 
@@ -196,4 +196,31 @@ size_t tlv::parseLen(const uint8_t* data, size_t* lenSize)
     if (lenSize) *lenSize = size;
 
     return r;
+}
+
+void tlv::pushBackLen(std::vector<uint8_t>& buffer, size_t len)
+{
+    constexpr size_t size_t_msByte_pos = ((sizeof(size_t) - 1) * 8);
+    constexpr size_t size_t_msByte_mask = ((size_t)0xFF) << size_t_msByte_pos;
+
+    if(len < 128) buffer.push_back((uint8_t)len);
+    else
+    {
+        size_t lenPos = buffer.size();
+        buffer.push_back(0);
+        uint8_t nOctetts = 0;
+
+        while(len)
+        {
+            while((len & size_t_msByte_mask) == 0) len <<= 8;
+
+            const uint8_t tmp = (len & size_t_msByte_mask) >> size_t_msByte_pos;
+
+            buffer.push_back(tmp);
+
+            len <<= 8;
+            ++nOctetts;
+        }
+        buffer[lenPos] = (nOctetts | 0x80);
+    }
 }

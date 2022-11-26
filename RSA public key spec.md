@@ -1,6 +1,8 @@
 https://en.wikipedia.org/wiki/ASN.1#Example_encoded_in_DER
 https://learn.microsoft.com/de-de/windows/win32/seccertenroll/about-der-encoding-of-asn-1-types
 
+---
+
 https://stackoverflow.com/a/13104466
 
 - publicExponent: 65537 (it is convention that all RSA public keys use 65537 as their exponent)
