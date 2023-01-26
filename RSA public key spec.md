@@ -1,5 +1,7 @@
-https://en.wikipedia.org/wiki/ASN.1#Example_encoded_in_DER
-https://learn.microsoft.com/de-de/windows/win32/seccertenroll/about-der-encoding-of-asn-1-types
+- https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail
+- https://en.wikipedia.org/wiki/ASN.1#Example_encoded_in_DER
+- https://learn.microsoft.com/de-de/windows/win32/seccertenroll/about-der-encoding-of-asn-1-types
+- https://lapo.it/asn1js/
 
 ---
 
